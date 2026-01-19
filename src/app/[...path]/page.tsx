@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback, Suspense } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useParams, useSearchParams } from 'next/navigation';
 import { APP_CONFIG } from '@/constants';
 import { generateFingerprint } from '@/lib/fingerprint';
 import {
@@ -12,22 +12,35 @@ import {
   DeviceType,
 } from '@/lib/device';
 
-function LinkPageContent() {
+function DeeplinkPageContent() {
+  const params = useParams();
   const searchParams = useSearchParams();
   const [status, setStatus] = useState<'loading' | 'redirecting' | 'fallback'>('loading');
   const [deviceType, setDeviceType] = useState<DeviceType>('unknown');
   const [message, setMessage] = useState('딥링크 처리 중...');
 
-  const path = searchParams.get('path') || '/';
-  const paramsStr = searchParams.get('params');
-  const params = paramsStr ? JSON.parse(paramsStr) : undefined;
+  // URL 경로를 딥링크 경로로 변환
+  // params.path는 배열 형태: ['invite', 'abc123'] -> '/invite/abc123'
+  const pathSegments = params.path as string[];
+  const deeplinkPath = '/' + pathSegments.join('/');
+
+  // 쿼리 파라미터를 객체로 변환
+  const queryParams: Record<string, string> = {};
+  searchParams.forEach((value, key) => {
+    queryParams[key] = value;
+  });
+  const hasQueryParams = Object.keys(queryParams).length > 0;
 
   const saveDeeplink = useCallback(async (fingerprint: string) => {
     try {
       const response = await fetch('/api/deferred', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ fingerprint, path, params }),
+        body: JSON.stringify({
+          fingerprint,
+          path: deeplinkPath,
+          params: hasQueryParams ? queryParams : undefined,
+        }),
       });
       const data = await response.json();
       console.log('Deferred deeplink saved:', data);
@@ -36,20 +49,19 @@ function LinkPageContent() {
       console.error('Failed to save deferred deeplink:', error);
       return false;
     }
-  }, [path, params]);
+  }, [deeplinkPath, queryParams, hasQueryParams]);
 
   const tryOpenApp = useCallback((device: DeviceType) => {
     const scheme = device === 'ios' ? APP_CONFIG.iosScheme : APP_CONFIG.androidScheme;
-    const deeplinkUrl = buildDeeplinkUrl(scheme, path, params);
+    const deeplinkUrl = buildDeeplinkUrl(scheme, deeplinkPath, hasQueryParams ? queryParams : undefined);
 
     console.log('Attempting to open app with:', deeplinkUrl);
     setMessage('앱 실행 시도 중...');
     setStatus('redirecting');
 
-    // 앱 실행 시도
     const startTime = Date.now();
 
-    // hidden iframe으로 커스텀 스킴 시도 (일부 브라우저에서 더 잘 작동)
+    // hidden iframe으로 커스텀 스킴 시도
     const iframe = document.createElement('iframe');
     iframe.style.display = 'none';
     iframe.src = deeplinkUrl;
@@ -64,7 +76,6 @@ function LinkPageContent() {
     setTimeout(() => {
       const elapsed = Date.now() - startTime;
 
-      // 페이지가 아직 활성화되어 있고 시간이 충분히 지났으면 앱이 설치 안 된 것
       if (document.visibilityState !== 'hidden' && elapsed >= APP_CONFIG.appLaunchTimeout - 500) {
         setStatus('fallback');
         setMessage('앱이 설치되어 있지 않습니다. 스토어로 이동합니다...');
@@ -74,10 +85,9 @@ function LinkPageContent() {
         }, 1000);
       }
 
-      // iframe 정리
       document.body.removeChild(iframe);
     }, APP_CONFIG.appLaunchTimeout);
-  }, [path, params]);
+  }, [deeplinkPath, queryParams, hasQueryParams]);
 
   const redirectToStore = (device: DeviceType) => {
     if (device === 'ios') {
@@ -91,7 +101,6 @@ function LinkPageContent() {
 
   useEffect(() => {
     const init = async () => {
-      // 디바이스 타입 감지
       const device = getClientDeviceType();
       setDeviceType(device);
 
@@ -101,17 +110,18 @@ function LinkPageContent() {
         return;
       }
 
-      // Fingerprint 생성 및 딥링크 저장
       setMessage('딥링크 정보 저장 중...');
       const fingerprint = await generateFingerprint();
       await saveDeeplink(fingerprint);
 
-      // 앱 실행 시도
       tryOpenApp(device);
     };
 
     init();
   }, [saveDeeplink, tryOpenApp]);
+
+  // 표시용 딥링크 URL
+  const displayDeeplinkUrl = `${APP_CONFIG.iosScheme}:/${deeplinkPath}${hasQueryParams ? '?' + new URLSearchParams(queryParams).toString() : ''}`;
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-b from-blue-500 to-blue-700 text-white p-4">
@@ -146,22 +156,21 @@ function LinkPageContent() {
 
         <div className="mt-8 text-xs text-blue-200 space-y-1">
           <p>디바이스: {deviceType}</p>
-          <p>딥링크 경로: {path}</p>
-          {params && <p>파라미터: {JSON.stringify(params)}</p>}
+          <p>딥링크: {displayDeeplinkUrl}</p>
         </div>
       </div>
     </div>
   );
 }
 
-export default function LinkPage() {
+export default function DeeplinkPage() {
   return (
     <Suspense fallback={
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-blue-500 to-blue-700">
         <div className="animate-spin w-8 h-8 border-4 border-white border-t-transparent rounded-full" />
       </div>
     }>
-      <LinkPageContent />
+      <DeeplinkPageContent />
     </Suspense>
   );
 }
