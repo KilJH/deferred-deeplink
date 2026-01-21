@@ -70,12 +70,13 @@ function DeeplinkPageContent() {
     setMessage('앱 실행 시도 중...');
     setStatus('redirecting');
 
-    // 커스텀 스킴으로 앱 열기 시도
-    window.location.href = deeplinkUrl;
+    // <a> 태그로 앱 열기 시도 (confirm 없이)
+    const link = document.createElement('a');
+    link.href = deeplinkUrl;
+    link.click();
 
     // 앱이 실행되지 않으면 스토어로 이동
     setTimeout(() => {
-      // 페이지가 아직 보이면 앱이 안 열린 것
       if (document.visibilityState !== 'hidden') {
         setStatus('fallback');
         setMessage('앱이 설치되어 있지 않습니다. 스토어로 이동합니다...');
