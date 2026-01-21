@@ -11,5 +11,5 @@ export const APP_CONFIG = {
   deeplinkExpiry: 24 * 60 * 60 * 1000,      // 24시간
 
   // 앱 실행 시도 후 스토어로 이동하기까지 대기 시간 (ms)
-  appLaunchTimeout: 1000,                   // 1초
+  appLaunchTimeout: 2500,                   // 2.5초
 };
