@@ -70,38 +70,16 @@ function DeeplinkPageContent() {
     setMessage('앱 실행 시도 중...');
     setStatus('redirecting');
 
-    // visibility change 감지 - 앱이 열리면 페이지가 hidden이 됨
-    let appOpened = false;
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'hidden') {
-        appOpened = true;
-      }
-    };
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-
-    // iOS: <a> 태그 클릭 시뮬레이션 (Safari 에러 방지)
-    const link = document.createElement('a');
-    link.href = deeplinkUrl;
-    link.style.display = 'none';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    // 커스텀 스킴으로 앱 열기 시도
+    window.location.href = deeplinkUrl;
 
     // 앱이 실행되지 않으면 스토어로 이동
     setTimeout(() => {
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-
-      if (!appOpened && document.visibilityState !== 'hidden') {
+      // 페이지가 아직 보이면 앱이 안 열린 것
+      if (document.visibilityState !== 'hidden') {
         setStatus('fallback');
         setMessage('앱이 설치되어 있지 않습니다. 스토어로 이동합니다...');
-
-        setTimeout(() => {
-          redirectToStore(device);
-        }, 1000);
-      } else {
-        // 앱이 열렸으면 완료 상태로
-        setStatus('done');
-        setMessage('앱으로 이동했습니다.');
+        redirectToStore(device);
       }
     }, APP_CONFIG.appLaunchTimeout);
   }, [deeplinkPath, queryParams, hasQueryParams, redirectToStore]);
