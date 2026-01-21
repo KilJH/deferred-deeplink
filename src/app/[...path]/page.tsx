@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback, Suspense } from 'react';
+import { useEffect, useState, useCallback, useRef, Suspense } from 'react';
 import { useParams, useSearchParams } from 'next/navigation';
 import { APP_CONFIG } from '@/constants';
 import { generateFingerprint } from '@/lib/fingerprint';
@@ -15,9 +15,10 @@ import {
 function DeeplinkPageContent() {
   const params = useParams();
   const searchParams = useSearchParams();
-  const [status, setStatus] = useState<'loading' | 'redirecting' | 'fallback'>('loading');
+  const [status, setStatus] = useState<'loading' | 'redirecting' | 'fallback' | 'done'>('loading');
   const [deviceType, setDeviceType] = useState<DeviceType>('unknown');
   const [message, setMessage] = useState('딥링크 처리 중...');
+  const hasAttempted = useRef(false);
 
   // URL 경로를 딥링크 경로로 변환
   // params.path는 배열 형태: ['invite', 'abc123'] -> '/invite/abc123'
@@ -51,6 +52,16 @@ function DeeplinkPageContent() {
     }
   }, [deeplinkPath, queryParams, hasQueryParams]);
 
+  const redirectToStore = useCallback((device: DeviceType) => {
+    if (device === 'ios') {
+      window.location.href = getAppStoreUrl(APP_CONFIG.iosAppId);
+    } else if (device === 'android') {
+      window.location.href = getPlayStoreUrl(APP_CONFIG.androidPackageName);
+    } else {
+      setMessage('지원하지 않는 기기입니다.');
+    }
+  }, []);
+
   const tryOpenApp = useCallback((device: DeviceType) => {
     const scheme = device === 'ios' ? APP_CONFIG.iosScheme : APP_CONFIG.androidScheme;
     const deeplinkUrl = buildDeeplinkUrl(scheme, deeplinkPath, hasQueryParams ? queryParams : undefined);
@@ -59,47 +70,47 @@ function DeeplinkPageContent() {
     setMessage('앱 실행 시도 중...');
     setStatus('redirecting');
 
-    const startTime = Date.now();
+    // visibility change 감지 - 앱이 열리면 페이지가 hidden이 됨
+    let appOpened = false;
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') {
+        appOpened = true;
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
 
-    // hidden iframe으로 커스텀 스킴 시도
-    const iframe = document.createElement('iframe');
-    iframe.style.display = 'none';
-    iframe.src = deeplinkUrl;
-    document.body.appendChild(iframe);
-
-    // 동시에 location도 변경 시도
-    setTimeout(() => {
-      window.location.href = deeplinkUrl;
-    }, 100);
+    // iOS: <a> 태그 클릭 시뮬레이션 (Safari 에러 방지)
+    const link = document.createElement('a');
+    link.href = deeplinkUrl;
+    link.style.display = 'none';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
 
     // 앱이 실행되지 않으면 스토어로 이동
     setTimeout(() => {
-      const elapsed = Date.now() - startTime;
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
 
-      if (document.visibilityState !== 'hidden' && elapsed >= APP_CONFIG.appLaunchTimeout - 500) {
+      if (!appOpened && document.visibilityState !== 'hidden') {
         setStatus('fallback');
         setMessage('앱이 설치되어 있지 않습니다. 스토어로 이동합니다...');
 
         setTimeout(() => {
           redirectToStore(device);
         }, 1000);
+      } else {
+        // 앱이 열렸으면 완료 상태로
+        setStatus('done');
+        setMessage('앱으로 이동했습니다.');
       }
-
-      document.body.removeChild(iframe);
     }, APP_CONFIG.appLaunchTimeout);
-  }, [deeplinkPath, queryParams, hasQueryParams]);
-
-  const redirectToStore = (device: DeviceType) => {
-    if (device === 'ios') {
-      window.location.href = getAppStoreUrl(APP_CONFIG.iosAppId);
-    } else if (device === 'android') {
-      window.location.href = getPlayStoreUrl(APP_CONFIG.androidPackageName);
-    } else {
-      setMessage('지원하지 않는 기기입니다.');
-    }
-  };
+  }, [deeplinkPath, queryParams, hasQueryParams, redirectToStore]);
 
   useEffect(() => {
+    // 이미 시도했으면 무시 (React strict mode 대응)
+    if (hasAttempted.current) return;
+    hasAttempted.current = true;
+
     const init = async () => {
       const device = getClientDeviceType();
       setDeviceType(device);
@@ -118,7 +129,8 @@ function DeeplinkPageContent() {
     };
 
     init();
-  }, [saveDeeplink, tryOpenApp]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // 표시용 딥링크 URL
   const displayDeeplinkUrl = `${APP_CONFIG.iosScheme}:/${deeplinkPath}${hasQueryParams ? '?' + new URLSearchParams(queryParams).toString() : ''}`;
