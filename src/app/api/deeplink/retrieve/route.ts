@@ -41,18 +41,20 @@ export async function POST(request: NextRequest) {
     }
 
     if (!data) {
+      console.log('[Deferred Deeplink Retrieve] Result: NOT FOUND');
       return NextResponse.json({
         success: false,
         message: 'No deferred deeplink found',
-        debug: {
-          ipAddress,
-          userAgentPrefix: userAgent.substring(0, 50),
-        },
       });
     }
 
     // 조회 후 삭제 (1회용)
     deleteDeferredDeeplink(data.id);
+
+    console.log('[Deferred Deeplink Retrieve] Result: SUCCESS', {
+      path: data.path,
+      params: data.params,
+    });
 
     return NextResponse.json({
       success: true,
