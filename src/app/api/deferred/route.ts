@@ -1,21 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server';
 import {
   saveDeferredDeeplink,
-  getDeferredDeeplink,
+  getDeferredDeeplinkByIPUA,
   deleteDeferredDeeplink,
   getDeferredDeeplinkByIP,
   getAllDeferredDeeplinks,
 } from '@/lib/storage';
-import { generateServerFingerprint } from '@/lib/fingerprint';
 
 /**
  * POST /api/deferred
  * 딥링크 정보 저장 (웹 랜딩 페이지에서 호출)
+ * IP + User-Agent 기반으로 저장
  */
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { fingerprint, path, params } = body;
+    const { path, params } = body;
 
     if (!path) {
       return NextResponse.json(
@@ -24,25 +24,19 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 클라이언트 정보 수집
+    // 클라이언트 정보 수집 (IP + User-Agent)
     const ipAddress = getClientIP(request);
     const userAgent = request.headers.get('user-agent') || '';
 
-    // 클라이언트 fingerprint가 없으면 서버에서 생성
-    const finalFingerprint = fingerprint || generateServerFingerprint(ipAddress, userAgent);
-
     saveDeferredDeeplink({
-      fingerprint: finalFingerprint,
       path,
       params,
-      createdAt: Date.now(),
       ipAddress,
       userAgent,
     });
 
     return NextResponse.json({
       success: true,
-      fingerprint: finalFingerprint,
       message: 'Deferred deeplink saved',
     });
   } catch (error) {
@@ -56,15 +50,13 @@ export async function POST(request: NextRequest) {
 
 /**
  * GET /api/deferred
- * 딥링크 정보 조회 (앱에서 호출)
+ * 딥링크 정보 조회 (디버그용)
  * Query params:
- *   - fingerprint: 클라이언트 fingerprint (선택)
  *   - debug: true면 모든 저장된 딥링크 반환
  */
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
-    const fingerprint = searchParams.get('fingerprint');
     const debug = searchParams.get('debug') === 'true';
 
     // 디버그 모드: 모든 딥링크 반환
@@ -80,20 +72,10 @@ export async function GET(request: NextRequest) {
     const ipAddress = getClientIP(request);
     const userAgent = request.headers.get('user-agent') || '';
 
-    let data = null;
+    // 1. IP + User-Agent로 검색
+    let data = getDeferredDeeplinkByIPUA(ipAddress, userAgent);
 
-    // 1. fingerprint로 먼저 검색
-    if (fingerprint) {
-      data = getDeferredDeeplink(fingerprint);
-    }
-
-    // 2. fingerprint 매칭 실패 시 서버 생성 fingerprint로 검색
-    if (!data) {
-      const serverFingerprint = generateServerFingerprint(ipAddress, userAgent);
-      data = getDeferredDeeplink(serverFingerprint);
-    }
-
-    // 3. 여전히 실패 시 IP로 fallback 검색
+    // 2. 실패 시 IP만으로 fallback 검색
     if (!data) {
       data = getDeferredDeeplinkByIP(ipAddress);
     }
@@ -103,14 +85,13 @@ export async function GET(request: NextRequest) {
         success: false,
         message: 'No deferred deeplink found',
         clientInfo: {
-          fingerprint,
           ipAddress,
         },
       });
     }
 
     // 조회 후 삭제 (1회용)
-    deleteDeferredDeeplink(data.fingerprint);
+    deleteDeferredDeeplink(data.id);
 
     return NextResponse.json({
       success: true,

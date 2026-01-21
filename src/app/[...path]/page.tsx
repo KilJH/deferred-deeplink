@@ -3,7 +3,6 @@
 import { useEffect, useState, useCallback, useRef, Suspense } from 'react';
 import { useParams, useSearchParams } from 'next/navigation';
 import { APP_CONFIG } from '@/constants';
-import { generateFingerprint } from '@/lib/fingerprint';
 import {
   getClientDeviceType,
   getAppStoreUrl,
@@ -32,13 +31,12 @@ function DeeplinkPageContent() {
   });
   const hasQueryParams = Object.keys(queryParams).length > 0;
 
-  const saveDeeplink = useCallback(async (fingerprint: string) => {
+  const saveDeeplink = useCallback(async () => {
     try {
       const response = await fetch('/api/deferred', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          fingerprint,
           path: deeplinkPath,
           params: hasQueryParams ? queryParams : undefined,
         }),
@@ -112,8 +110,7 @@ function DeeplinkPageContent() {
       }
 
       setMessage('딥링크 정보 저장 중...');
-      const fingerprint = await generateFingerprint();
-      await saveDeeplink(fingerprint);
+      await saveDeeplink();
 
       tryOpenApp(device);
     };

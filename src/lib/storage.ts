@@ -1,21 +1,38 @@
 import { APP_CONFIG } from '@/constants';
 
 export interface DeferredDeeplink {
-  fingerprint: string;
+  id: string;  // IP + UA 해시
   path: string;
   params?: Record<string, string>;
   createdAt: number;
-  ipAddress?: string;
-  userAgent?: string;
+  ipAddress: string;
+  userAgent: string;
 }
 
 // 인메모리 저장소 (서버 재시작 시 초기화됨)
 const storage = new Map<string, DeferredDeeplink>();
 
-export function saveDeferredDeeplink(data: DeferredDeeplink): void {
-  // 기존에 같은 fingerprint가 있으면 덮어쓰기
-  storage.set(data.fingerprint, {
+/**
+ * IP + User-Agent 조합으로 고유 ID 생성
+ */
+export function generateMatchKey(ipAddress: string, userAgent: string): string {
+  // 간단한 해시 (프로덕션에서는 더 강력한 해시 사용 권장)
+  const str = `${ipAddress}|${userAgent}`;
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    const char = str.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash = hash & hash;
+  }
+  return Math.abs(hash).toString(36);
+}
+
+export function saveDeferredDeeplink(data: Omit<DeferredDeeplink, 'id' | 'createdAt'>): void {
+  const id = generateMatchKey(data.ipAddress, data.userAgent);
+
+  storage.set(id, {
     ...data,
+    id,
     createdAt: Date.now(),
   });
 
@@ -23,8 +40,12 @@ export function saveDeferredDeeplink(data: DeferredDeeplink): void {
   cleanupExpiredLinks();
 }
 
-export function getDeferredDeeplink(fingerprint: string): DeferredDeeplink | null {
-  const data = storage.get(fingerprint);
+/**
+ * IP + User-Agent로 딥링크 조회
+ */
+export function getDeferredDeeplinkByIPUA(ipAddress: string, userAgent: string): DeferredDeeplink | null {
+  const id = generateMatchKey(ipAddress, userAgent);
+  const data = storage.get(id);
 
   if (!data) {
     return null;
@@ -32,18 +53,16 @@ export function getDeferredDeeplink(fingerprint: string): DeferredDeeplink | nul
 
   // 만료 체크
   if (Date.now() - data.createdAt > APP_CONFIG.deeplinkExpiry) {
-    storage.delete(fingerprint);
+    storage.delete(id);
     return null;
   }
 
   return data;
 }
 
-export function deleteDeferredDeeplink(fingerprint: string): void {
-  storage.delete(fingerprint);
-}
-
-// IP 기반으로 딥링크 찾기 (fingerprint 매칭 실패 시 fallback)
+/**
+ * IP만으로 딥링크 조회 (fallback)
+ */
 export function getDeferredDeeplinkByIP(ipAddress: string): DeferredDeeplink | null {
   for (const [, data] of storage) {
     if (data.ipAddress === ipAddress) {
@@ -55,6 +74,10 @@ export function getDeferredDeeplinkByIP(ipAddress: string): DeferredDeeplink | n
     }
   }
   return null;
+}
+
+export function deleteDeferredDeeplink(id: string): void {
+  storage.delete(id);
 }
 
 function cleanupExpiredLinks(): void {

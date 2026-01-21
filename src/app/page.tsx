@@ -2,7 +2,6 @@
 
 import { useEffect, useState, useCallback, useRef, Suspense } from 'react';
 import { APP_CONFIG } from '@/constants';
-import { generateFingerprint } from '@/lib/fingerprint';
 import {
   getClientDeviceType,
   getAppStoreUrl,
@@ -20,13 +19,12 @@ function HomeDeeplinkContent() {
   // 루트 경로 = 앱 홈
   const deeplinkPath = '/';
 
-  const saveDeeplink = useCallback(async (fingerprint: string) => {
+  const saveDeeplink = useCallback(async () => {
     try {
       const response = await fetch('/api/deferred', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          fingerprint,
           path: deeplinkPath,
         }),
       });
@@ -99,8 +97,7 @@ function HomeDeeplinkContent() {
       }
 
       setMessage('딥링크 정보 저장 중...');
-      const fingerprint = await generateFingerprint();
-      await saveDeeplink(fingerprint);
+      await saveDeeplink();
 
       tryOpenApp(device);
     };
