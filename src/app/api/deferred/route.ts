@@ -1,21 +1,23 @@
 import { NextRequest, NextResponse } from 'next/server';
 import {
   saveDeferredDeeplink,
+  getDeferredDeeplinkByFingerprint,
   getDeferredDeeplinkByIPUA,
   deleteDeferredDeeplink,
   getDeferredDeeplinkByIP,
   getAllDeferredDeeplinks,
+  DeviceFingerprint,
 } from '@/lib/storage';
 
 /**
  * POST /api/deferred
  * 딥링크 정보 저장 (웹 랜딩 페이지에서 호출)
- * IP + User-Agent 기반으로 저장
+ * 복합 fingerprint 기반으로 저장 (IP + UA + 추가 데이터)
  */
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { path, params } = body;
+    const { path, params, timezone, screenResolution } = body;
 
     if (!path) {
       return NextResponse.json(
@@ -24,15 +26,28 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 클라이언트 정보 수집 (IP + User-Agent)
-    const ipAddress = getClientIP(request);
-    const userAgent = request.headers.get('user-agent') || '';
+    // 클라이언트 정보 수집
+    const fingerprint: DeviceFingerprint = {
+      ipAddress: getClientIP(request),
+      userAgent: request.headers.get('user-agent') || '',
+      acceptLanguage: request.headers.get('accept-language') || undefined,
+      timezone: timezone || undefined,
+      screenResolution: screenResolution || undefined,
+    };
 
     saveDeferredDeeplink({
       path,
       params,
-      ipAddress,
-      userAgent,
+      fingerprint,
+    });
+
+    console.log('[Deferred Deeplink Saved]', {
+      path,
+      ip: fingerprint.ipAddress,
+      ua: fingerprint.userAgent.substring(0, 50),
+      lang: fingerprint.acceptLanguage,
+      tz: fingerprint.timezone,
+      screen: fingerprint.screenResolution,
     });
 
     return NextResponse.json({
@@ -71,11 +86,21 @@ export async function GET(request: NextRequest) {
 
     const ipAddress = getClientIP(request);
     const userAgent = request.headers.get('user-agent') || '';
+    const acceptLanguage = request.headers.get('accept-language') || undefined;
 
-    // 1. IP + User-Agent로 검색
-    let data = getDeferredDeeplinkByIPUA(ipAddress, userAgent);
+    // 1. 기본 fingerprint로 검색 (추가 데이터 없이)
+    let data = getDeferredDeeplinkByFingerprint({
+      ipAddress,
+      userAgent,
+      acceptLanguage,
+    });
 
-    // 2. 실패 시 IP만으로 fallback 검색
+    // 2. 실패 시 IP + UA만으로 검색
+    if (!data) {
+      data = getDeferredDeeplinkByIPUA(ipAddress, userAgent);
+    }
+
+    // 3. 최종 fallback: IP만으로 검색
     if (!data) {
       data = getDeferredDeeplinkByIP(ipAddress);
     }

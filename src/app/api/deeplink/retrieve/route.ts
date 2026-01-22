@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import {
+  getDeferredDeeplinkByFingerprint,
   getDeferredDeeplinkByIPUA,
   getDeferredDeeplinkByIP,
   deleteDeferredDeeplink,
+  DeviceFingerprint,
 } from '@/lib/storage';
 
 /**
@@ -10,32 +12,51 @@ import {
  * 앱에서 디퍼드 딥링크 조회
  *
  * Request body:
- *   - deviceId: 앱 디바이스 ID (iOS IDFV, Android ID) - 사용 안 함
  *   - platform: 플랫폼 (ios, android)
  *   - bundleId: 앱 번들 ID
+ *   - timezone: (optional) 타임존
+ *   - screenResolution: (optional) 화면 해상도
+ *   - locale: (optional) 로케일
  *
- * 매칭 방식: IP + User-Agent (업계 표준)
+ * 매칭 방식: 복합 fingerprint (IP + UA + 추가 데이터)
  */
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { platform, bundleId } = body;
+    const { platform, bundleId, timezone, screenResolution, locale } = body;
 
     // 클라이언트 정보 수집
     const ipAddress = getClientIP(request);
     const userAgent = request.headers.get('user-agent') || '';
+    const acceptLanguage = request.headers.get('accept-language') || locale || undefined;
+
+    const fingerprint: DeviceFingerprint = {
+      ipAddress,
+      userAgent,
+      acceptLanguage,
+      timezone,
+      screenResolution,
+    };
 
     console.log('[Deferred Deeplink Retrieve]', {
       platform,
       bundleId,
-      ipAddress,
-      userAgent: userAgent.substring(0, 100),
+      ip: ipAddress,
+      ua: userAgent.substring(0, 50),
+      lang: acceptLanguage,
+      tz: timezone,
+      screen: screenResolution,
     });
 
-    // 1. IP + User-Agent로 검색
-    let data = getDeferredDeeplinkByIPUA(ipAddress, userAgent);
+    // 1. 전체 fingerprint로 검색
+    let data = getDeferredDeeplinkByFingerprint(fingerprint);
 
-    // 2. 실패 시 IP만으로 fallback 검색
+    // 2. 실패 시 IP + UA만으로 검색
+    if (!data) {
+      data = getDeferredDeeplinkByIPUA(ipAddress, userAgent);
+    }
+
+    // 3. 최종 fallback: IP만으로 검색
     if (!data) {
       data = getDeferredDeeplinkByIP(ipAddress);
     }

@@ -21,11 +21,17 @@ function HomeDeeplinkContent() {
 
   const saveDeeplink = useCallback(async () => {
     try {
+      // 추가 식별 데이터 수집
+      const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      const screenResolution = `${window.screen.width}x${window.screen.height}`;
+
       const response = await fetch('/api/deferred', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           path: deeplinkPath,
+          timezone,
+          screenResolution,
         }),
       });
       const data = await response.json();
