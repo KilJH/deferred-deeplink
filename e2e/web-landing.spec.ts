@@ -11,7 +11,7 @@ test.describe('웹 랜딩 페이지', () => {
     await expect(page.getByText('모바일 기기에서 접근해주세요')).toBeVisible({ timeout: 5000 });
   });
 
-  test('페이지 로드 시 API 호출 확인 (모바일)', async ({ page }) => {
+  test('앱이 설치되지 않은 경우 API 호출 확인 (모바일)', async ({ page }) => {
     const testInfo = test.info();
     test.skip(testInfo.project.name === 'Desktop Chrome', '모바일 전용 테스트');
 
@@ -27,10 +27,10 @@ test.describe('웹 랜딩 페이지', () => {
       await route.continue();
     });
 
-    await page.goto('/invite/test123');
+    await page.goto('/invite/test123', { waitUntil: 'domcontentloaded' });
 
-    // API 호출 대기
-    await page.waitForTimeout(1000);
+    // API 호출 대기 (앱 실행 타임아웃 1초 + 네트워크 지연)
+    await page.waitForTimeout(2500);
 
     expect(apiCalled).toBe(true);
     expect(requestBody).not.toBeNull();
@@ -50,8 +50,9 @@ test.describe('웹 랜딩 페이지', () => {
       await route.continue();
     });
 
-    await page.goto('/channel/abc');
-    await page.waitForTimeout(1000);
+    await page.goto('/channel/abc', { waitUntil: 'domcontentloaded' });
+    // API 호출 대기 (앱 실행 타임아웃 1초 + 네트워크 지연)
+    await page.waitForTimeout(2500);
 
     expect(requestBody).not.toBeNull();
     // timezone과 screenResolution이 포함되어야 함
@@ -72,8 +73,9 @@ test.describe('웹 랜딩 페이지', () => {
       await route.continue();
     });
 
-    await page.goto('/invite/xyz?ref=campaign1&source=share');
-    await page.waitForTimeout(1000);
+    await page.goto('/invite/xyz?ref=campaign1&source=share', { waitUntil: 'domcontentloaded' });
+    // API 호출 대기 (앱 실행 타임아웃 1초 + 네트워크 지연)
+    await page.waitForTimeout(2500);
 
     expect(requestBody).not.toBeNull();
     expect(requestBody?.path).toBe('/invite/xyz');

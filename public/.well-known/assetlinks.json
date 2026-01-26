@@ -1,11 +1,14 @@
 [
   {
-    "relation": ["delegate_permission/common.handle_all_urls"],
+    "relation": [
+      "delegate_permission/common.handle_all_urls"
+    ],
     "target": {
       "namespace": "android_app",
       "package_name": "com.add.verychat_app",
       "sha256_cert_fingerprints": [
-        "3D:D7:AE:4D:16:EF:32:54:22:1F:C6:31:5B:87:E6:C5:7A:1A:88:18:E1:8C:67:63:57:6A:05:CB:C6:C4:68:F4"
+        "FA:C6:17:45:DC:09:03:78:6F:B9:ED:E6:2A:96:2B:39:9F:73:48:F0:BB:6F:89:9B:83:32:66:75:91:03:3B:9C",
+        "9F:95:C2:05:67:22:12:89:B3:AF:B8:1A:32:D2:28:BC:86:28:3A:4E:62:34:28:A6:35:0B:C2:4E:4B:5E:29:9D"
       ]
     }
   }

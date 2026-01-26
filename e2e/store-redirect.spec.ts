@@ -19,7 +19,7 @@ test.describe('스토어 리다이렉트', () => {
       await route.abort();
     });
 
-    await page.goto('/invite/test');
+    await page.goto('/invite/test', { waitUntil: 'domcontentloaded' });
 
     // 1초 타임아웃 후 스토어로 이동 시도
     await page.waitForTimeout(2000);
@@ -46,7 +46,7 @@ test.describe('스토어 리다이렉트', () => {
       }
     });
 
-    await page.goto('/invite/test');
+    await page.goto('/invite/test', { waitUntil: 'domcontentloaded' });
     await page.waitForTimeout(2000);
 
     // Play Store 버튼 또는 리다이렉트 확인
@@ -61,7 +61,7 @@ test.describe('스토어 리다이렉트', () => {
     const testInfo = test.info();
     test.skip(testInfo.project.name !== 'Mobile iOS', 'iOS Safari 전용 테스트');
 
-    await page.goto('/');
+    await page.goto('/', { waitUntil: 'domcontentloaded' });
     await page.waitForTimeout(500);
 
     await expect(page.getByText('디바이스: ios')).toBeVisible();
@@ -71,7 +71,7 @@ test.describe('스토어 리다이렉트', () => {
     const testInfo = test.info();
     test.skip(testInfo.project.name !== 'Mobile Android', 'Android Chrome 전용 테스트');
 
-    await page.goto('/');
+    await page.goto('/', { waitUntil: 'domcontentloaded' });
     await page.waitForTimeout(500);
 
     await expect(page.getByText('디바이스: android')).toBeVisible();
@@ -81,7 +81,7 @@ test.describe('스토어 리다이렉트', () => {
     const testInfo = test.info();
     test.skip(testInfo.project.name === 'Desktop Chrome', '모바일 전용 테스트');
 
-    await page.goto('/channel/123');
+    await page.goto('/channel/123', { waitUntil: 'domcontentloaded' });
     await page.waitForTimeout(500);
 
     // 딥링크 URL 확인
