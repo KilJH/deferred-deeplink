@@ -88,17 +88,19 @@ function DeeplinkPageContent() {
     link.href = deeplinkUrl;
     link.click();
 
-    // 앱이 실행되지 않으면 스토어로 이동
-    setTimeout(() => {
+    // 앱이 실행되지 않으면 딥링크 저장 후 스토어로 이동
+    setTimeout(async () => {
       document.removeEventListener('visibilitychange', onVisibilityChange);
 
       if (!appOpened && document.visibilityState !== 'hidden') {
         setStatus('fallback');
+        setMessage('딥링크 정보 저장 중...');
+        await saveDeeplink();  // 앱이 안 열렸을 때만 저장
         setMessage('앱이 설치되어 있지 않습니다. 스토어로 이동합니다...');
         redirectToStore(device);
       }
     }, APP_CONFIG.appLaunchTimeout);
-  }, [deeplinkPath, queryParams, hasQueryParams, redirectToStore]);
+  }, [deeplinkPath, queryParams, hasQueryParams, redirectToStore, saveDeeplink]);
 
   useEffect(() => {
     // 이미 시도했으면 무시 (React strict mode 대응)
@@ -115,10 +117,7 @@ function DeeplinkPageContent() {
         return;
       }
 
-      setMessage('딥링크 정보 저장 중...');
-      await saveDeeplink();
-
-      tryOpenApp(device);
+      tryOpenApp(device);  // 앱 실행 시도 (저장은 실패 시에만)
     };
 
     init();
